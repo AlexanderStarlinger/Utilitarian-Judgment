@@ -1,0 +1,562 @@
+---
+title: "PAID Code"
+author: "Alexander Starlinger"
+date: "2023-12-17"
+output: html_document
+---
+
+# 1. Packages & Imports
+
+```{r load packages }
+
+library(readxl)
+library(tidyverse)
+library(lme4)
+library(reshape2)
+library(lmerTest)
+library(emmeans)
+library(r2mlm)
+library(psych)
+library(lmtest)
+library(sjPlot)
+library(haven)
+library(estimatr)
+library(flexplot)
+library(flextable)
+
+options(scipen = 999)
+
+```
+
+```{r import data}
+
+MA_data <- read.csv2("data/util_judgment_data_wide.csv")
+MA_data_long <- read.csv2("data/util_judgment_data_long.csv")
+
+```
+
+# 2. Descriptives & Reliability
+
+utilitarianism.
+
+```{r util descriptives}
+
+MA_data_long %>%
+  group_by(self_cwc, inv_cwc) %>%
+  summarize(mean = round(mean(UtilScore), 2),
+            sd = round(sd(UtilScore), 2))
+
+```
+
+## 2.1. Sample Description
+
+```{r sample description}
+
+socDem <- MA_data %>%
+  select(sex, age, highest_education, student, nationality)
+
+# 1. N
+nrow(socDem)
+
+# 2. Age
+describe(socDem$age)
+
+# 3. sex
+socDem$sex %>% table()/nrow(socDem)
+
+# 4. edu; Note: <= 3: primary; 4: secondary; >= 5: tertiary
+eduTable <- socDem$highest_education %>% table()/nrow(socDem)
+
+## primary: 19%; secondary: 46.3%; tertiary: 34.7%
+
+# 5. student
+table(socDem$student)/nrow(socDem) 
+
+# 6. nationality
+table(socDem$nationality)/nrow(socDem)
+
+
+```
+
+## 2.2 Descriptives
+
+descriptives UtilScores.
+
+```{r descriptives: UtilScores means}
+
+# means per parcel
+
+MA_data_long %>%
+  group_by(inv_cwc, self_cwc) %>%
+  summarize(mean = round(mean(UtilScore, na.rm = TRUE), 2),
+            sd = round(sd(UtilScore, na.rm = TRUE), 2))
+
+```
+
+Descriptives predictors.
+
+```{r descriptives: reliability}
+
+## item objects
+LTS_items <- MA_data %>%
+  select(GM02_01:GM02_12)
+NPI_items <- MA_data %>%
+  select(GN01_01:GN01_15)
+HSNS_items <- MA_data %>%
+  select(VN02_01:VN02_10)
+MACH_items <- MA_data %>%
+  select(MA02_01:MA02_03, MA02_04_R, MA02_05)
+DC_items <- MA_data %>%
+  select(DC01_01_R, DC01_02, DC01_03_R, DC01_04, DC01_05_R, DC01_06,
+         DC01_07_R, DC01_08, DC01_09_R, DC01_10, DC01_11, DC01_12, DC01_13_R, DC01_14_R, DC01_15, DC01_16_R)
+SRP_items <- MA_data %>%
+  select(PS01_01:PS01_03, PS01_04_R, PS01_05:PS01_10, PS01_11_R, PS01_12:PS01_16, PS03_17_R, PS03_18_R, PS03_19_R, PS03_20:PS03_31)
+
+## keys für subscalen
+
+fih <- c(1:4)
+hu <- c(5:8)
+kant <- c(9:12)
+
+lp <- c(1:3, 5:7, 10:12, 14)
+g <- c(4, 8, 9, 13, 15)
+
+stj <- c(1:3, 7, 9)
+e <- c(4:6, 8, 10)
+
+ab <- c(22:31)
+its <- c(1, 3, 5, 9, 10, 12:14, 20)
+im <- c(2, 6, 15, 16:19)
+ca <- c(4, 7, 8, 11, 21)
+
+## rel
+
+# scales
+lts_total_rel <- round(alpha(LTS_items)$total$raw_alpha, 3)
+srp_total_rel <- round(alpha(SRP_items, keys = c("PS01_04_R", "PS01_04_R", "PS01_04_R", "PS01_04_R", "PS01_04_R"))$total$raw_alpha, 3)
+npi_total_rel <- round(alpha(NPI_items)$total$raw_alpha, 3)
+hsns_total_rel <- round(alpha(HSNS_items)$total$raw_alpha, 3)
+mach_total_rel <- round(alpha(MACH_items)$total$raw_alpha, 3)
+dc_total_rel <- round(alpha(DC_items)$total$raw_alpha, 3)
+
+# subscales
+
+lts_fih_rel <- round(alpha(LTS_items[, fih])$total$raw_alpha, 3)
+lts_hu_rel <- round(alpha(LTS_items[, hu])$total$raw_alpha, 3)
+lts_kant_rel <- round(alpha(LTS_items[, kant])$total$raw_alpha, 3)
+srp_ab_rel <- round(alpha(SRP_items[, ab], keys = c("PS01_04_R", "PS01_04_R", "PS01_04_R", "PS01_04_R", "PS01_04_R"))$total$raw_alpha, 3)
+srp_its_rel <- round(alpha(SRP_items[, its], keys = c("PS01_04_R", "PS01_04_R", "PS01_04_R", "PS01_04_R", "PS01_04_R"))$total$raw_alpha, 3)
+srp_im_rel <- round(alpha(SRP_items[, im], keys = c("PS01_04_R", "PS01_04_R", "PS01_04_R", "PS01_04_R", "PS01_04_R"))$total$raw_alpha, 3)
+srp_ca_rel <- round(alpha(SRP_items[, ca], keys = c("PS01_04_R", "PS01_04_R", "PS01_04_R", "PS01_04_R", "PS01_04_R"))$total$raw_alpha, 3)
+npi_lp_rel <- round(alpha(NPI_items[, lp], keys = c("PS01_04_R", "PS01_04_R", "PS01_04_R", "PS01_04_R", "PS01_04_R"))$total$raw_alpha, 3)
+npi_g_rel <- round(alpha(NPI_items[, g], keys = c("PS01_04_R", "PS01_04_R", "PS01_04_R", "PS01_04_R", "PS01_04_R"))$total$raw_alpha, 3)
+hsns_stj_rel <- round(alpha(HSNS_items[, stj])$total$raw_alpha, 3)
+hsns_e_rel <- round(alpha(HSNS_items[, e])$total$raw_alpha, 3)
+
+
+rel <- c(lts_total_rel, lts_fih_rel, lts_hu_rel, lts_kant_rel, npi_total_rel, npi_lp_rel, npi_g_rel, hsns_total_rel, hsns_stj_rel, hsns_e_rel,
+         srp_total_rel, srp_ab_rel, srp_im_rel, srp_its_rel, srp_ca_rel, mach_total_rel, dc_total_rel)
+
+# items rausschmeißen
+
+MA_data <- MA_data %>%
+  select(!(c(nationality, highest_education, student, GM02_01:PS03_31, MA02_01:DC01_16_R)))
+
+```
+
+```{r descriptives: Konstrukte}
+
+scales <- MA_data %>%
+  select(LTS_total:DC_total)
+
+descriptives <- MA_data %>%
+  select(LTS_total:DC_total) %>%
+  describe() %>%
+  select(c(mean, sd))
+
+## append reliability
+
+descriptives$alpha <- rel
+descriptives
+
+```
+
+```{r table 1 primary analysis}
+
+preds  <- MA_data %>% select(LTS_FIH:NPI_total, HSNS_STJ:SRP_total, MACH_total:DC_total)
+preds <- preds %>% 
+  relocate(., after = c("DC_total", "SRP_total", "MACH_total", "NPI_total", "HSNS_E", "HSNS_STJ", "LTS_FIH", "LTS_H", "LTS_K")) 
+colnames(preds) <- c("DC_total", "SRP_total", "MACH_total", "NPI_total", "HSNS_E", "HSNS_STJ", "LTS_FIH", "LTS_H", "LTS_K")
+
+
+tab1 <- preds %>%
+  describe() %>%
+  select(c(mean, sd)) %>% round(., 2)
+
+tab1_alpha <- descriptives[colnames(preds), ] %>% select(alpha)
+tab1$alpha <- round(tab1_alpha$alpha, 2)
+
+pred_cor <- round(corr.test(preds)$r, 2)
+pred_cor_p <- round(corr.test(preds)$p, 5)
+pred_cor_p
+
+
+pred_cor[upper.tri(pred_cor, diag = TRUE)] <- NA
+
+tab1 <- cbind(tab1, pred_cor)
+
+tab1
+
+```
+
+# 3. Primary Analysis
+
+Models:
+
+0) Nullmodel (ICC estimate)
+1) Covariates + SI/PI + DC
+2) random slopes PI
+3) Dark Trait block
+4) LTS block
+5) CL-I SRP*PI
+
+# 3.1. Models
+
+```{r unconditional model}
+
+null_model <- lmer(UtilScore ~ 1 + (1|ID), data = MA_data_long, REML = FALSE)
+
+summary(null_model) 
+tab_model(null_model)
+
+```
+
+1) Covariates + SI*PI + DC
+
+```{r DC model}
+
+DC_model <- lmer(UtilScore ~ sex + age + inv_cwc*self_cwc + DC_total_gmc + (1|ID), data = MA_data_long)
+
+summary(DC_model)
+tab_model(DC_model)
+
+```
+
+2) + RE inv_cwc.
+
+```{r DC-RE model}
+
+DC_RE_model <- lmer(UtilScore ~ sex + age + inv_cwc*self_cwc + DC_total_gmc + (1 + inv_cwc|ID), data = MA_data_long)
+
+summary(DC_RE_model)
+tab_model(DC_RE_model)
+
+anova(DC_model, DC_RE_model) 
+
+```
+
+3) Dark Traits Block.
+
+```{r DT model}
+
+DT_model <- lmer(UtilScore ~ sex + age + inv_cwc*self_cwc + DC_total_gmc + HSNS_E_gmc + HSNS_STJ_gmc + MACH_total_gmc + SRP_total_gmc + NPI_total_gmc + (1 + inv_cwc|ID), data = MA_data_long)
+
+summary(DT_model)
+tab_model(DT_model)
+
+anova(DC_RE_model, DT_model) 
+
+
+```
+
+4) LTS Block.
+
+```{r LTS model}
+
+LTS_model <- lmer(UtilScore ~ sex + age + inv_cwc*self_cwc + DC_total_gmc + SRP_total_gmc + MACH_total_gmc + NPI_total_gmc + HSNS_E_gmc + HSNS_STJ_gmc + LTS_FIH_gmc + LTS_H_gmc + LTS_K_gmc +  (1 + inv_cwc|ID), data = MA_data_long)
+
+summary(LTS_model)
+tab_model(LTS_model)
+
+anova(DT_model, LTS_model) # no improvement
+
+```
+
+5) CL-I SRP*inv_cwc.
+
+```{r full model}
+
+
+full_model <- lmer(UtilScore ~ sex + age + inv_cwc*self_cwc + DC_total_gmc + SRP_total_gmc + MACH_total_gmc + NPI_total_gmc + HSNS_E_gmc + HSNS_STJ_gmc + LTS_FIH_gmc + LTS_H_gmc + LTS_K_gmc + inv_cwc*SRP_total_gmc +  (1 + inv_cwc|ID), data = MA_data_long)
+
+summary(full_model)
+tab_model(full_model)
+
+anova(full_model, LTS_model) 
+
+```
+
+# 3.2 EMMEANS
+
+simple slopes SRP total.
+
+```{r simple slopes}
+
+emtrends(full_model, specs = "inv_cwc", var = "SRP_total_gmc") %>%
+  test()
+
+```
+
+```{r EMMeans SI*PI}
+
+emm_SIPI <- emmeans(full_model, ~ inv_cwc*self_cwc)
+pairs(emm_SIPI)
+
+# calculate d
+eff_size(emm_SIPI, sigma(full_model), edf = Inf)
+
+```
+
+# 3.3 Explained Variance
+
+explained variance: r2mlm. 
+
+Note: r2mlm needs numerical predictors. Refit.
+
+```{r R^2: r2mlm}
+
+MA_data_num <- MA_data_long %>% mutate(sex = as.numeric(sex),
+                                       self_cwc = as.numeric(self_cwc),
+                                       inv_cwc = as.numeric(inv_cwc))
+
+full_model_num <- lmer(UtilScore ~ sex + age + inv_cwc*self_cwc + DC_total_gmc + SRP_total_gmc + MACH_total_gmc + NPI_total_gmc + HSNS_E_gmc + HSNS_STJ_gmc + LTS_FIH_gmc + LTS_H_gmc + LTS_K_gmc + inv_cwc*SRP_total_gmc +  (1 + inv_cwc|ID), data = MA_data_num)
+
+r2mlm(full_model_num)
+
+
+```
+
+# 3.4 additional models
+
+MACH as single predictor.
+
+```{r MACH}
+
+MACH_model <- lmer(UtilScore ~ sex + age + inv_cwc*self_cwc + DC_total_gmc + MACH_total_gmc +  (1 + inv_cwc|ID), data = MA_data_long)
+
+summary(MACH_model)
+tab_model(MACH_model)
+
+anova(DC_RE_model, MACH_model) 
+
+```
+
+LTS as single predictor.
+
+```{r LTS total}
+
+LTS_total_model <- lmer(UtilScore ~ sex + age + inv_cwc*self_cwc + DC_total_gmc + SRP_total_gmc + MACH_total_gmc + NPI_total_gmc + HSNS_E_gmc + HSNS_STJ_gmc + LTS_total_gmc + (1 + inv_cwc|ID), data = MA_data_long)
+
+summary(LTS_total_model)
+tab_model(LTS_total_model)
+
+anova(DT_model, LTS_total_model)
+
+```
+
+
+# 4. Supplementary Analyses
+
+  1) single level regression für SI*DC
+  2) facet-level LMM (SRP-III)
+  3) facet-level: F1 vs. F2
+
+
+## 4.1 Single-Level Regression
+
+```{r single-level model: estimatr}
+
+single_level_mod <- lm_robust(UtilScore ~ sex + age + 
+                                inv_cwc*self_cwc + 
+                                DC_total_gmc + SRP_total_gmc + MACH_total_gmc + NPI_total_gmc +
+                                HSNS_E_gmc + HSNS_STJ_gmc + LTS_FIH_gmc +  LTS_H_gmc + LTS_K_gmc +
+                                DC_total_gmc*self_cwc +
+                                SRP_total_gmc * inv_cwc,
+                                cluster = ID, data = MA_data_long)
+
+summary(single_level_mod)
+tab_model(single_level_mod)
+
+```
+
+```{r single-level model: probe interaction}
+
+emtrends(single_level_mod, specs = "self_cwc", var = "DC_total_gmc") %>% 
+  test()
+
+```
+
+Check if interaction self-interest*SRP improves model fit.
+
+``` {r single-level full}
+
+single_level_mod_full <- lm_robust(UtilScore ~ sex + age + 
+                                inv_cwc*self_cwc + 
+                                DC_total_gmc + SRP_total_gmc + MACH_total_gmc + NPI_total_gmc +
+                                HSNS_E_gmc + HSNS_STJ_gmc + LTS_FIH_gmc +  LTS_H_gmc + LTS_K_gmc +
+                                DC_total_gmc*self_cwc +
+                                SRP_total_gmc * inv_cwc +
+                                SRP_total_gmc * self_cwc,
+                                cluster = ID, data = MA_data_long)
+
+summary(single_level_mod_full)
+
+# LRT
+waldtest(single_level_mod, single_level_mod_full)
+
+
+```
+
+## 4.2 SRP Facet-Level Model
+
+```{r SRP Model}
+
+SRP_model <- lmer(UtilScore ~ sex + age + self_cwc * inv_cwc + SRP_AB_gmc + SRP_ITS_gmc + SRP_IM_gmc + SRP_CA_gmc + (1 + inv_cwc | ID) + inv_cwc * SRP_AB_gmc + inv_cwc * SRP_IM_gmc, data = MA_data_long)
+
+summary(SRP_model)
+tab_model(SRP_model)
+```
+
+simple slopes AB/IM.
+
+```{r simple slopes SRP-AB}
+
+emtrends(SRP_model, specs = "inv_cwc", var = "SRP_AB_gmc") %>% 
+  test()
+emtrends(SRP_model, specs = "inv_cwc", var = "SRP_IM_gmc") %>% 
+  test()
+
+```
+
+## 4.3. SRP: two-factor (primary vs. secondary psychopathy)
+
+```{r SRP twofactor model}
+
+SRP_twofactor_model <- lmer(UtilScore ~ sex + age + self_cwc * inv_cwc + SRP_F1_gmc + SRP_F2_gmc + (1 + inv_cwc | ID) + inv_cwc * SRP_F1_gmc  + inv_cwc * SRP_F2_gmc, data = MA_data_long)
+
+summary(SRP_twofactor_model)
+tab_model(SRP_twofactor_model)
+
+```
+
+# 5. Figures
+
+## 5.1 Figure 1
+
+means.
+
+```{r barplot means}
+
+MA_data_long_rec <- MA_data_long %>%
+  mutate(self_interest = factor(self_interest, labels = c("no-individual-benefit", "individual-benefit")),
+         involvement = factor(involvement, labels = c("impersonal", "personal")))
+
+descr <- MA_data_long_rec %>%
+  group_by(self_interest, involvement) %>%
+  summarize(mean = round(mean(UtilScore), 2),
+            sd = round(sd(UtilScore), 2),
+            n = n(),
+            se = sd/sqrt(n))
+
+dodge <- position_dodge(0.9)
+
+ggplot(data = descr, aes(x = self_interest, y = mean, fill = involvement)) +
+  geom_bar(stat = "identity", position = dodge, color = "black", size = 0.5) +
+  geom_errorbar(aes(ymin = mean - 1.96*se, ymax = mean + 1.96*se), position = dodge, width = 0.3) + 
+  ylim(-2, 2) +
+  theme_minimal() +
+  scale_fill_grey() +
+  xlab("self interest") +
+  ylab("Utilitarianism (mean)")
+
+
+
+```
+
+Cohen's d.
+
+```{r EMMeans für SI*PI}
+
+emm_SIPI <- emmeans(full_model, ~ inv_cwc * self_cwc)
+
+# d
+tmp <- eff_size(emm_SIPI, sigma(full_model), edf = Inf)
+tmp <- tmp[c(1:2, 5:6)]
+eff_sizes <- summary(tmp)
+
+#change sign
+eff_sizes  <- eff_sizes %>% 
+  mutate(effect.size = effect.size*-1,
+         LCL = asymp.UCL*-1,
+         UCL = asymp.LCL*-1)
+
+# get plotting info
+eff_sizes <- eff_sizes %>% 
+              select(effect.size, LCL, UCL) %>%
+              mutate(effect = factor(rep(c("involvement", "self-interest"), 2)),
+              level = factor(rep(c("impersonal/\nno individual benefit", "personal/\nindividual benefit"), each = 2)))
+
+eff_sizes$level <- relevel(eff_sizes$level, "impersonal/\nno individual benefit")
+
+#plot
+dodge <- position_dodge(0.9)
+
+ggplot(data = eff_sizes, aes(x = effect, y = effect.size, fill = level)) + 
+  geom_bar(stat = "identity", position = dodge, color = "black", size = 0.5) +
+  geom_errorbar(aes(ymin = LCL, ymax = UCL), position = dodge, width = 0.3) +  
+  theme_minimal() +
+  scale_fill_grey(start = 0.8, end = 0.2) +
+  xlab("Dilemma characteristic") +
+  ylab("Standardized mean difference (d)")
+
+```
+
+## 5.2. Figure 2
+
+Interaction plots. Recode labels.
+
+```{r interaction plots prep}
+
+MA_data_long_rec <- MA_data_long %>%
+  mutate(involvement = factor(involvement, labels = c("impersonal", "personal")),
+         self_interest = factor(self_interest, labels = c("no individual benefit", "individual benefit")))
+
+```
+
+a) DC*SI.
+
+```{r interaction plot DC*SI}
+
+ggplot(data = MA_data_long_rec, aes(x = DC_total_gmc, y = UtilScore, color = self_interest)) +
+    geom_smooth(method = "lm", se = FALSE) + 
+    theme_minimal() + 
+    ylim(-2, 2) +
+    scale_color_grey(name = "self interest", start = 0.8, end = 0.2) +
+    xlab("D (standardized)") +
+    ylab("Utilitarianism")
+
+```
+
+b) SRP*PI.
+
+```{r interaction plot SRP*PI}
+
+ggplot(data = MA_data_long_rec, aes(x = SRP_total_gmc, y = UtilScore, color = involvement)) +
+    geom_smooth(method = "lm", se = FALSE) + 
+    theme_minimal() + 
+    ylim(-2, 2) +
+    scale_color_grey(start = 0.8, end = 0.2) +
+    xlab("Psychopathy (standardized)") +
+    ylab("Utilitarianism")
+
+```
